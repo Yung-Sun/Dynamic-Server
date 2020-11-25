@@ -39,15 +39,30 @@ var server = http.createServer(function (request, response) {
         response.end(`{"errorCode": 40001}`)
       } else {
         response.statusCode = 200
-        response.setHeader('Set-Cookie','logined=1')
+        const random = Math.random()
+        const session = JSON.parse(fs.readFileSync('./session.json').toString())
+        session[random] = {user_id: user.id}
+        fs.writeFileSync('./session.json',JSON.stringify(session))
+        response.setHeader('Set-Cookie',`user_id=${user.id}; HttpOnly`)
         response.end()
       }
     })
   } else if (path === '/home.html') {
     const cookie = request.headers['cookie']
-    if(cookie === 'logined=1'){
+    let userId
+    try{
+      userId = cookie.split(';').filter(s => s.indexOf('user_id=')>=0)[0].split('=')[1]
+    }catch(error){ }
+    if(userId){
+      const userArray = JSON.parse(fs.readFileSync('./database/user.json'))
+      const user = userArray.find(user=>user.id.toString() ===userId)
       const homeHtml = fs.readFileSync('./public/home.html').toString()
-      const string = homeHtml.replace('{{loginStatus}}','已登录')
+      let string
+      if(user){
+        string = homeHtml.replace('{{loginStatus}}','已登录').replace('{{user.name}}', user.name)
+      }else{
+        string = homeHtml.replace('{{loginStatus}}','未登录').replace('{{user.name}}', '')
+      }
       response.write(string)
     }else{
       const homeHtml = fs.readFileSync('./public/home.html').toString()
@@ -75,7 +90,9 @@ var server = http.createServer(function (request, response) {
       userArray.push(newUser)
       fs.writeFileSync('./database/user.json', JSON.stringify(userArray))
       response.end()
+      
     })
+    
   } else {
     response.statusCode = 200;
     // 默认首页
